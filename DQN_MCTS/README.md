@@ -46,6 +46,16 @@ the episode but is not counted as a death.
 ```sh
 python dqn_train.py --seed 0 --steps 20000
 python dqn_train.py --seed 1 --steps 20000
+python dqn_train.py --seed 0 --steps 20000
+python dqn_train.py --seed 1 --steps 20000
+python dqn_train.py --seed 0 --steps 20000
+python dqn_train.py --seed 1 --steps 20000
+python dqn_train.py --seed 0 --steps 20000
+python dqn_train.py --seed 1 --steps 20000
+python dqn_train.py --seed 0 --steps 20000
+python dqn_train.py --seed 1 --steps 20000
+python dqn_train.py --seed 0 --steps 20000
+python dqn_train.py --seed 1 --steps 20000
 ```
 
 Each run writes its own `results/dqn_seed<seed>_steps<steps>/` folder. 

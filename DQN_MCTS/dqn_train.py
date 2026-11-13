@@ -12,6 +12,7 @@ from pathlib import Path
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DQN
+from stable_baselines3 import PPO
 from hisss_tools import DELTAS, TURN_LIMIT, new_game, board, advance, replay
 
 
@@ -23,16 +24,76 @@ def prepare_observation(state):
        For each direction, record 1 if the next cell is inside the board and
        clear of our body, otherwise 0. These flags describe immediate danger;
        the agent can still choose any of the four actions.
+
     2. Find the nearest apple by Manhattan distance. Record how far it is from
        the head in x and y, relative to the board size. If no apple is present,
        using the head as the default gives an offset of (0, 0).
+
     3. Add the fraction of health remaining and return the seven numbers.
        We reuse this function in dqn_battlesnake.py: the trained network expects
        exactly the same inputs in exactly the same order when playing a real game.
+
+
+    imidiate_cells = []
+    apples = b["apples"]
+    health = s["health"]
+
+    if y + 1 >= b["height"]:
+        for i in body:
+            if y + 1 == i[1]:
+                imidiate_cells.append(0)
+                break
+        imidiate_cells.append(1)
+    else:
+        imidiate_cells.append(0)
+
+    if y - 1 <= 0:
+        for i in body:
+            if y - 1 == i[1]:
+                imidiate_cells.append(0)
+                break
+        imidiate_cells.append(1)
+    else:
+        imidiate_cells.append(0)
+
+    if x + 1 >= b["width"]:
+        for i in body:
+            if x + 1 == i[0]:
+                imidiate_cells.append(0)
+                break
+        imidiate_cells.append(1)
+    else:
+        imidiate_cells.append(0)
+
+    if x - 1 <= 0:
+        for i in body:
+            if x - 1 == i[0]:
+                imidiate_cells.append(0)
+                break
+        imidiate_cells.append(1)
+    else:
+        imidiate_cells.append(0)
+
+
+    nearest_apple = (0,0)
+    min_distance = 1000
+    if len(apples) > 0:
+        for apple in apples:
+            x_dist = x - apple["x"]
+            y_dist = y - apple["y"]
+            manhattan_dist = abs(x_dist) + abs(y_dist)
+            if manhattan_dist < min_distance:
+                min_distance = manhattan_dist
+                nearest_apple = (apple["x"], apple["y"])
+
     """
+
+
     b, s = state["board"], state["you"]
     x, y = s["head"]["x"], s["head"]["y"]
     body = [(p["x"], p["y"]) for p in s["body"]]
+
+
     # HISSS may omit repeated tail cells; the official API includes them.
     # A single tail tip vacates its cell on the next move. A stacked tip stays blocked.
     blocked = body if len(body) < s["length"] else body[:-1]
@@ -110,14 +171,25 @@ def train(seed, steps, folder):
     env = SoloEnv()
     # The two hidden layers have 32 neurons each. After collecting initial experience,
     # SB3 trains every four moves. Epsilon stays at 0.15 so the snake keeps exploring.
-    options = dict(device="cpu", learning_rate=0.001, buffer_size=20000, learning_starts=256,
+    options = dict(policy="MlpPolicy", env = env, seed = seed, device="cpu", learning_rate=0.001,
+                   buffer_size=20000, learning_starts=256,
                    gamma=0.95, train_freq=4, target_update_interval=250,
                    exploration_initial_eps=0.15, exploration_final_eps=0.15,
                    policy_kwargs=dict(net_arch=[32,32]))
     # TODO 1.1: Replace None with an SB3 DQN. Give it "MlpPolicy", our env and seed,
     # TODO 2.1: Try to replace DQN with PPO and see if it does better after training
     # and unpack options as keyword arguments. Create it once so it retains experience.
-    model = None
+    #model = DQN(**options)
+    #model = PPO("MlpPolicy", env, seed=seed)
+    data = Path(folder)
+
+    # Check if the file exists
+    if data.exists():
+        print("File exists")
+        model = DQN.load(folder/"dqn.zip", env)
+    else:
+        print("File does not exist")
+        model = DQN(**options)
 
     if model is None:
         raise NotImplementedError("Set the model two lines above.")
@@ -129,7 +201,8 @@ def train(seed, steps, folder):
             # TODO 1.2: Replace the exception with a call to the model's learn method.
             # Use block_steps for total_timesteps; the last block may be shorter. Set
             # reset_num_timesteps to False so progress continues across blocks.
-            raise NotImplementedError("Train your agent here.")
+            model.learn(total_timesteps=block_steps, reset_num_timesteps=False)
+
             steps_left -= block_steps
 
             # Report on the average performance in the last 20 recently completed games
@@ -187,6 +260,8 @@ if __name__ == "__main__":
     if args.steps <= 0 or args.steps % 4 or args.seed < 0:
         parser.error("Use a positive multiple of four steps and a nonnegative seed.")
     # Change --seed to repeat the experiment; each seed and budget gets its own folder.
-    folder = Path("results")/f"dqn_seed{args.seed}_steps{args.steps}"
-    model, history = train(args.seed, args.steps, folder)
+    #folder = Path("results")/f"dqn_seed{args.seed}_steps{args.steps}"
+    folder = Path("results")/"dqn"
+    #for i in range(20):
+    model, history = train(0, 20000, folder)
     visualize(model, history, folder, args.seed)
